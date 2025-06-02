@@ -10,7 +10,7 @@
 #include <pthread.h>
 
 struct timespec ts;
-int difficulty = 10000000;
+int difficulty = 1000000;
 const double PI = 3.1415;
 int runtime = 0;
 
@@ -59,17 +59,18 @@ void* run_thread(void* args) {
 }
 
 
-pthread_t test_threaded(int core_id, long num_cpus) {
-
+pthread_t test_threaded(int *core_id_ptr, long num_cpus) {
+    int core_id = *core_id_ptr;
 
     if (core_id < 0 || core_id >= num_cpus) {
         printf("Invalid core_id: %d (must be between 0 and %ld)\n", core_id, num_cpus - 1);
         return -1;
     }
 
+
     if (set_affinity(core_id)) {
         pthread_t thread_id;
-        pthread_create(&thread_id, NULL, run_thread, &core_id);
+        pthread_create(&thread_id, NULL, run_thread, core_id_ptr);
         return thread_id;
     } else {
         printf("Failed to set affinity\n");
@@ -89,7 +90,7 @@ void test_each_core(long num_cpus) {
             //run(core_id);
             // or
 
-            pthread_join(test_threaded(core_id, num_cpus), NULL);
+            pthread_join(test_threaded(&core_id, num_cpus), NULL);
 
         } else {
             printf("Failed to set affinity\n");
@@ -101,6 +102,10 @@ void test_each_core(long num_cpus) {
 
 
 int main() {
+    clock_gettime(CLOCK_REALTIME, &ts);
+    double startTime = ( (double)ts.tv_sec + (double)ts.tv_nsec / 1.0e9 );
+
+
     long num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
     if (num_cpus == -1) {
         fprintf(stderr, "sysconf failed: %s\n", strerror(errno));
@@ -108,20 +113,30 @@ int main() {
     } else {
         printf("This system has %ld CPU cores\n", num_cpus);
     }
-    int core[2];
-    printf("Give 2 cores (id1 id2) to test with multithreading: ");
-    scanf("%d %d", &core[0], &core[1]);
 
     printf("\nTesting each core with %d difficulty:\n", difficulty);
     test_each_core(num_cpus);
 
-    printf("\nTesting multithread:\n");
-    pthread_t thread1 = test_threaded(core[0], num_cpus);
-    pthread_t thread2 = test_threaded(core[1], num_cpus);
+    printf("\nTesting hyperthread + multicore characteristics of the cpu:\n");
+    int iterations = (num_cpus * (num_cpus - 1)) / 2;
+    int current = 1;
+
+    for (int i = 0; i < num_cpus; i++) {
+        for (int j = i + 1; j < num_cpus; j++) {
+            printf("Iteration %d of %d: %d with %d\n", current, iterations, i, j);
+            pthread_t thread1 = test_threaded(&i, num_cpus);
+            pthread_t thread2 = test_threaded(&j, num_cpus);
+
+            if(thread1 != -1) pthread_join(thread1, NULL);
+            if(thread2 != -1) pthread_join(thread2, NULL);
+
+            printf("\n");
+        }
+    }
 
 
-    if(thread1 != -1) pthread_join(thread1, NULL);
-    if(thread1 != -1) pthread_join(thread2, NULL);
-
+    clock_gettime(CLOCK_REALTIME, &ts);
+    double endTime = ( (double)ts.tv_sec + (double)ts.tv_nsec / 1.0e9 );
+    printf("Test took %lf seconds from start to finish\n", endTime - startTime);
     return 0;
 }
