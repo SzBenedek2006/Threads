@@ -20,7 +20,8 @@ bool fHelp = false;
 bool fExtended = false;
 
 
-void set_flags(int argc, char* argv[]) { // do it in flag order, later ones can override previous ones like with rm command
+
+int set_flags(int argc, char* argv[]) { // do it in flag order, later ones can override previous ones like with rm command
     for (int i = 1; i < argc; i++) { // iterate args
         //printf("%s\n", argv[i]);
 
@@ -42,13 +43,28 @@ void set_flags(int argc, char* argv[]) { // do it in flag order, later ones can 
                     }
                 }
             } else { // long flags
-               //TODO
+                if (strcmp(argv[i], "--difficulty") == 0 || strcmp(argv[i], "--diff") == 0) {
+                    i++;
+                    if (argv[i] != NULL) { // 9 character long is safe
+                        if (strlen(argv[i]) >= 10) {
+                            printf("Max value is 999999999 (9 characters). Exiting!\n");
+                            return 0;
+                        } else {
+                            difficulty = atoi(argv[i]); // Very not NULL safe
+                        }
+                    } else {
+                        printf("Missing difficulty parameter. Exiting!\n");
+                        return 0;
+                    }
+                }
             }
-
-
         }
-
+        else {
+            printf("Found garbage data in flags, continuing...\n");
+        }
     }
+    return 1;
+
 }
 
 
@@ -146,7 +162,9 @@ int main(int argc, char* argv[]) {
     clock_gettime(CLOCK_REALTIME, &ts);
     double startTime = ( (double)ts.tv_sec + (double)ts.tv_nsec / 1.0e9 );
 
-    set_flags(argc, argv);
+    if (!set_flags(argc, argv)) {
+        return 1;
+    }
     if (fHelp) {
         //TODO: implement help message
         return 0;
